@@ -1,0 +1,6 @@
+- `desired_retention`: where the red line sits; cards below it are red. `0.80` or `80`.
+- `search`: which cards are counted (any Anki search). Default leaves out suspended cards.
+- `min_percent`: lowest left edge of the chart. Cards below it are piled onto the first bar; the chart starts further right when there are no cards that low.
+- `near_target_points`: cards this many points above the line are orange, the rest green.
+- `refresh_seconds`: how long a count is reused before the deck list asks RWKV again. The review screen recounts on every card.
+- `show_in_reviewer`: also show a small text-free chart in the review screen's bottom bar, beside "Edit".

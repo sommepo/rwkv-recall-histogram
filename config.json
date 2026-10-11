@@ -1,0 +1,8 @@
+{
+    "desired_retention": 0.80,
+    "search": "-is:suspended",
+    "min_percent": 50,
+    "near_target_points": 3,
+    "refresh_seconds": 20,
+    "show_in_reviewer": true
+}

@@ -1,0 +1,54 @@
+#rwkv-recall {
+    max-width: 640px;
+    margin: 18px auto 6px;
+    color: var(--fg-subtle, #888);
+    font-size: 13px;
+}
+#rwkv-recall svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+#rwkv-recall .rr-title {
+    margin-bottom: 4px;
+}
+#rwkv-recall .rr-note {
+    margin-top: 2px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+.rr-low {
+    fill: #e53935;
+}
+.rr-near {
+    fill: #fb8c00;
+}
+.rr-ok {
+    fill: #43a047;
+}
+.rr-axis {
+    stroke: currentColor;
+    stroke-opacity: 0.45;
+    stroke-width: 1;
+}
+.rr-target {
+    stroke: #e53935;
+    stroke-width: 1.5;
+}
+#rwkv-recall .rr-tick {
+    fill: currentColor;
+    font-size: 11px;
+    text-anchor: middle;
+}
+
+/* reviewer bottom bar: bars only, positioned by reviewer.js */
+#rwkv-recall-mini {
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--fg-subtle, #888);
+    pointer-events: none;
+}
+#rwkv-recall-mini svg {
+    display: block;
+}
