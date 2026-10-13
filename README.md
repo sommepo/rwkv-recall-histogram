@@ -1,9 +1,14 @@
 # RWKV Recall Histogram
 
 An Anki desktop add-on that shows how your cards are spread across **RWKV
-retrievability (R) right now**: one bar per percent of R, with a red line at
-your desired retention. Cards below the line are red, cards just above it are
-orange, the rest are green.
+retrievability (R) right now**: one bar per percent of R. The red part of each
+bar is the cards that are due, meaning at or below their own desired retention;
+the rest of the bar is green.
+
+Each card is judged against its own target, so per-card desired retention (for
+example from the Dynamic Desired Retention add-on) is shown correctly: a card
+at 80% with an 85% target is red, a card at 65% with a 60% target is green.
+Dashed lines mark the desired retentions in use.
 
 **[Download RWKV-Recall-Histogram.ankiaddon](https://github.com/sommepo/rwkv-recall-histogram/releases/latest/download/RWKV-Recall-Histogram.ankiaddon)**
 
@@ -15,7 +20,7 @@ In the review screen's bottom bar, beside "Edit", without any text:
 
 ![Histogram in the reviewer's bottom bar](screenshots/reviewer.png)
 
-The screenshots use sample data.
+The screenshots use sample data, with desired retentions of 70%, 80% and 90%.
 
 **Requires the RWKV Instant Anki fork.** Tested on Windows with the
 `26.9b3+fsrs7` build of [JSchoreels/anki](https://github.com/JSchoreels/anki).
@@ -35,6 +40,19 @@ The RWKV scheduler owns the prediction. The add-on asks the fork for the same
 per-percent retrievability series the Stats screen uses and only draws it; it
 does not change scheduling, card data, or deck options.
 
+- "Due" is the fork's own `is:rwkv:due` search: review cards in RWKV-Instant
+  decks whose R is at or below their desired retention and that pass the
+  same-day and repeat-spacing rules. Daily review limits and the minimum
+  reviews per day setting are not applied.
+- It works the same with or without a per-card desired-retention add-on, and
+  needs no setting. Without one, every card's target is its preset's desired
+  retention, so there is one dashed line per preset and the bars left of it
+  are red.
+- With such an add-on, the dashed lines are the desired retentions the fork
+  last resolved for a review queue. They appear once a deck's queue has been
+  scored, and are left out when a rule gives nearly every card its own target.
+- On a fork build without the due search, the chart falls back to one red line
+  at `desired_retention`: cards below it are red, cards just above it orange.
 - The deck list chart is recounted in the background and reused for
   `refresh_seconds`, so the deck list never waits for the scheduler.
 - The review screen chart is recounted in the background on every card. It
@@ -47,10 +65,10 @@ does not change scheduling, card data, or deck options.
 
 **Tools → Add-ons → RWKV Recall Histogram → Config**
 
-- `desired_retention`: where the red line sits; cards below it are red. `0.80` or `80`.
+- `desired_retention`: fallback only. Where the red line sits when the fork cannot report due cards. `0.80` or `80`.
 - `search`: which cards are counted (any Anki search). The default leaves out suspended cards.
 - `min_percent`: lowest left edge of the chart. Cards below it are piled onto the first bar; the chart starts further right when there are no cards that low.
-- `near_target_points`: cards this many points above the line are orange, the rest green.
+- `near_target_points`: fallback only. Cards this many points above the line are orange, the rest green.
 - `refresh_seconds`: how long a count is reused before the deck list asks RWKV again.
 - `show_in_reviewer`: also show the small text-free chart in the review screen's bottom bar.
 

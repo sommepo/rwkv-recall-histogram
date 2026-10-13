@@ -35,6 +35,12 @@
     stroke: #e53935;
     stroke-width: 1.5;
 }
+.rr-tier {
+    stroke: #e53935;
+    stroke-opacity: 0.55;
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+}
 #rwkv-recall .rr-tick {
     fill: currentColor;
     font-size: 11px;

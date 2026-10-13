@@ -2,8 +2,9 @@
 
 The RWKV scheduler owns the prediction. This add-on asks the fork for the same
 per-percent RWKV retrievability series the Stats screen uses and draws it under
-the deck list: x is RWKV R now, y is the number of cards at that R, and the
-vertical line is the desired retention.
+the deck list: x is RWKV R now, y is the number of cards at that R. The red
+part of each bar is the cards RWKV counts as due, each against its own desired
+retention, so per-card targets (Dynamic Desired Retention) are respected.
 
 The reviewer's bottom bar shows the same bars as a small text-free chart.
 """
@@ -33,9 +34,16 @@ DEFAULTS: dict[str, Any] = {
 }
 PENDING_RETRY_MS = 3000
 MAX_PENDING_RETRIES = 40
+# The fork's search for review cards at or below their own desired retention.
+DUE_SEARCH = "is:rwkv:due"
+# More distinct targets than this is a continuous rule, not a set of tiers.
+MAX_TARGET_MARKS = 8
 
 # Last histogram, kept so the deck list never has to wait for the scheduler.
 _buckets: dict[int, int] | None = None
+_due_buckets: dict[int, int] | None = None
+_targets: list[float] = []
+_due_search_failed = False
 _computed_at = 0.0
 _in_flight = False
 _stale = False
@@ -78,7 +86,7 @@ def _search() -> str:
     return value if isinstance(value, str) else DEFAULTS["search"]
 
 
-def _rwkv_buckets(search: str) -> dict[int, int] | None:
+def _rwkv_series(search: str) -> dict[int, int] | None:
     """Cards per whole percent of RWKV R; None while the scheduler is not ready.
 
     Not ready covers warm-up, a busy backend and a state cache that is still
@@ -99,9 +107,78 @@ def _rwkv_buckets(search: str) -> dict[int, int] | None:
     }
 
 
+def _target_marks() -> list[float]:
+    """Distinct desired retentions (percent) the fork last resolved for a queue.
+
+    Best effort: with a Dynamic Desired Retention provider it is empty until a
+    deck's queue has been scored, and for a rule that gives nearly every card
+    its own target.
+    """
+    try:
+        from aqt import rwkv_scheduler
+
+        maps = list(getattr(rwkv_scheduler, "_rwkv_review_queue_target_maps", {}).values())
+        marks = {round(float(t) * 100, 1) for m in maps for t in list(m.values())}
+    except Exception:
+        return []
+    marks = {mark for mark in marks if 0 < mark < 100}
+    if not marks:
+        marks = _preset_marks()
+    return sorted(marks) if len(marks) <= MAX_TARGET_MARKS else []
+
+
+def _preset_marks() -> set[float]:
+    """Desired retention of every RWKV-Instant preset that has cards.
+
+    Used before any queue has been scored. Left empty when a Dynamic Desired
+    Retention provider is loaded, as it may give cards other targets.
+    """
+    try:
+        from aqt import rwkv_scheduler
+
+        if rwkv_scheduler._dynamic_desired_retention_info_for_card_ids_resolver() is not None:
+            return set()
+        marks = set()
+        for deck in mw.col.decks.all_names_and_ids(include_filtered=False):
+            config = mw.col.decks.config_dict_for_deck_id(deck.id)
+            if rwkv_scheduler._rwkv_review_instant_order_enabled(
+                config
+            ) and mw.col.db.scalar("select 1 from cards where did = ? limit 1", deck.id):
+                target = rwkv_scheduler._rwkv_target_retention_for_deck_config(config)
+                marks.add(round(float(target) * 100, 1))
+        return {mark for mark in marks if 0 < mark < 100}
+    except Exception:
+        return set()
+
+
+def _rwkv_buckets(search: str) -> tuple[dict[int, int], dict[int, int] | None, list[float]] | None:
+    """All cards and due cards per percent of R, plus the targets in use.
+
+    The due series is None on a fork without the due search; the chart then
+    falls back to the single configured desired-retention line.
+    """
+    global _due_search_failed
+    everything = _rwkv_series(search)
+    if everything is None:
+        return None
+    due = None
+    if not _due_search_failed:
+        try:
+            due = _rwkv_series(f"({search}) {DUE_SEARCH}" if search.strip() else DUE_SEARCH)
+        except Exception as error:
+            _due_search_failed = True
+            print(f"RWKV Recall Histogram: due search unavailable: {error}")
+        else:
+            if due is None:
+                return None
+    return everything, due, _target_marks() if due is not None else []
+
+
 def _payload() -> str:
     data = dict(_settings())
     data["buckets"] = _buckets
+    data["due"] = _due_buckets
+    data["targets"] = _targets
     return json.dumps(data)
 
 
@@ -140,19 +217,20 @@ def _refresh(force: bool = False) -> None:
     search = _search()
 
     def done(future) -> None:
-        global _buckets, _computed_at, _in_flight, _pending_retries, _stale
+        global _buckets, _due_buckets, _targets
+        global _computed_at, _in_flight, _pending_retries, _stale
         _in_flight = False
         if _stale:
             _stale = False
             QTimer.singleShot(0, _retry_pending)
         try:
-            buckets = future.result()
+            result = future.result()
         except Exception as error:  # never break the deck list
             print(f"RWKV Recall Histogram: {error}")
             if _buckets is None:
                 _push("RWKV recall is unavailable")
             return
-        if buckets is None:
+        if result is None:
             if _pending_retries < MAX_PENDING_RETRIES:
                 _pending_retries += 1
                 QTimer.singleShot(PENDING_RETRY_MS, _retry_pending)
@@ -160,7 +238,7 @@ def _refresh(force: bool = False) -> None:
                 _push("RWKV recall is unavailable")
             return
         _pending_retries = 0
-        _buckets = buckets
+        _buckets, _due_buckets, _targets = result
         _computed_at = time.monotonic()
         _push()
 
@@ -204,8 +282,10 @@ def _on_question(*_args) -> None:
 
 
 def _on_profile_close() -> None:
-    global _buckets, _computed_at, _pending_retries
+    global _buckets, _due_buckets, _targets, _computed_at, _pending_retries
     _buckets = None
+    _due_buckets = None
+    _targets = []
     _computed_at = 0.0
     _pending_retries = 0
 
