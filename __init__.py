@@ -6,7 +6,8 @@ the deck list: x is RWKV R now, y is the number of cards at that R. The red
 part of each bar is the cards RWKV counts as due, each against its own desired
 retention, so per-card targets (Dynamic Desired Retention) are respected.
 
-The reviewer's bottom bar shows the same bars as a small text-free chart.
+The reviewer's bottom bar shows the same bars as a small text-free chart, with
+the current card's bar in yellow while its answer is showing.
 """
 
 from __future__ import annotations
@@ -121,16 +122,15 @@ def _target_marks() -> list[float]:
         marks = {round(float(t) * 100, 1) for m in maps for t in list(m.values())}
     except Exception:
         return []
-    marks = {mark for mark in marks if 0 < mark < 100}
-    if not marks:
-        marks = _preset_marks()
+    marks = {mark for mark in marks if 0 < mark < 100} | _preset_marks()
     return sorted(marks) if len(marks) <= MAX_TARGET_MARKS else []
 
 
 def _preset_marks() -> set[float]:
     """Desired retention of every RWKV-Instant preset that has cards.
 
-    Used before any queue has been scored. Left empty when a Dynamic Desired
+    Without per-card targets a scored queue only covers its own deck, so these
+    keep the other presets' lines in view. Left empty when a Dynamic Desired
     Retention provider is loaded, as it may give cards other targets.
     """
     try:
@@ -174,16 +174,31 @@ def _rwkv_buckets(search: str) -> tuple[dict[int, int], dict[int, int] | None, l
     return everything, due, _target_marks() if due is not None else []
 
 
-def _payload() -> str:
+def _payload(card: int | None = None) -> str:
     data = dict(_settings())
     data["buckets"] = _buckets
     data["due"] = _due_buckets
     data["targets"] = _targets
+    data["card"] = card
     return json.dumps(data)
 
 
 def _in_reviewer() -> bool:
     return mw.state == "review" and bool(_config().get("show_in_reviewer", True))
+
+
+def _card_percent() -> int | None:
+    """RWKV R of the card whose answer is showing, as the card itself rounds it."""
+    reviewer = mw.reviewer
+    if reviewer.state != "answer" or reviewer.card is None:
+        return None
+    try:
+        from aqt import rwkv_scheduler
+
+        recall = rwkv_scheduler.current_reviewer_retrievability(reviewer, reviewer.card)
+    except Exception:
+        return None
+    return None if recall is None else int(f"{recall * 100:.0f}")
 
 
 def _push(error: str | None = None) -> None:
@@ -192,7 +207,7 @@ def _push(error: str | None = None) -> None:
         mw.deckBrowser.web.eval(f"window.__rwkvRecallSet && __rwkvRecallSet({args});")
     elif _in_reviewer():  # no text there, so an error just leaves it empty
         mw.reviewer.bottom.web.eval(
-            f"window.__rwkvRecallMini && __rwkvRecallMini({_payload()});"
+            f"window.__rwkvRecallMini && __rwkvRecallMini({_payload(_card_percent())});"
         )
 
 
@@ -276,7 +291,16 @@ def _on_content(web_content, context) -> None:
 def _on_question(*_args) -> None:
     try:
         if _in_reviewer():  # every card, like the fork's own RWKV numbers
+            _push()  # the recount can take a while; the highlight goes now
             _refresh(force=True)
+    except Exception as error:  # never break reviewing
+        print(f"RWKV Recall Histogram: {error}")
+
+
+def _on_answer(*_args) -> None:
+    try:
+        if _in_reviewer():
+            _push()
     except Exception as error:  # never break reviewing
         print(f"RWKV Recall Histogram: {error}")
 
@@ -293,4 +317,5 @@ def _on_profile_close() -> None:
 gui_hooks.deck_browser_will_render_content.append(_on_deck_browser)
 gui_hooks.webview_will_set_content.append(_on_content)
 gui_hooks.reviewer_did_show_question.append(_on_question)
+gui_hooks.reviewer_did_show_answer.append(_on_answer)
 gui_hooks.profile_will_close.append(_on_profile_close)

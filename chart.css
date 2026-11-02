@@ -26,6 +26,9 @@
 .rr-ok {
     fill: #43a047;
 }
+.rr-card {
+    fill: #ffd600;
+}
 .rr-axis {
     stroke: currentColor;
     stroke-opacity: 0.45;

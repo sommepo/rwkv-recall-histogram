@@ -12,15 +12,28 @@ Dashed lines mark the desired retentions in use.
 
 **[Download RWKV-Recall-Histogram.ankiaddon](https://github.com/sommepo/rwkv-recall-histogram/releases/latest/download/RWKV-Recall-Histogram.ankiaddon)**
 
-Under the deck list:
+The chart sits under the deck list, and without any text in the review screen's
+bottom bar, beside "Edit". Once a card's answer is showing, the bar for that
+card's RWKV R turns yellow.
 
-![Histogram under the deck list](screenshots/deck-list.png)
+### Without per-card desired retention
 
-In the review screen's bottom bar, beside "Edit", without any text:
+Every card uses its preset's target, here 85%, so each bar left of the line is
+red.
 
-![Histogram in the reviewer's bottom bar](screenshots/reviewer.png)
+![Histogram under the deck list with one preset target](screenshots/deck-list-fixed.png)
 
-The screenshots use sample data, with desired retentions of 70%, 80% and 90%.
+![Reviewer chart with one preset target and the card's bar in yellow](screenshots/reviewer-fixed.png)
+
+### With Dynamic Desired Retention
+
+Cards have their own targets, here 70%, 80% and 90%, so a bar can be part due.
+
+![Histogram under the deck list with per-card targets](screenshots/deck-list-ddr.png)
+
+![Reviewer chart with per-card targets and the card's bar in yellow](screenshots/reviewer-ddr.png)
+
+The screenshots use sample data, with the current card at 82% in the reviewer.
 
 **Requires the RWKV Instant Anki fork.** Tested on Windows with the
 `26.9b3+fsrs7` build of [JSchoreels/anki](https://github.com/JSchoreels/anki).
@@ -58,6 +71,10 @@ does not change scheduling, card data, or deck options.
 - The review screen chart is recounted in the background on every card. It
   hides itself when the window is too narrow to fit it between "Edit" and the
   answer buttons.
+- The yellow bar is the fork's own RWKV R for the current card, rounded the
+  same way as the fork rounds it for display. It appears with the answer and
+  works the same with or without per-card desired retention. A card with no
+  RWKV prediction shows no yellow bar.
 - While RWKV is still warming up the chart shows "Loading…" and fills in once
   the scores are ready.
 

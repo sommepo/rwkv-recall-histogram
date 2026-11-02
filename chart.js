@@ -7,6 +7,7 @@
 // are drawn as faint lines. Without it, the chart falls back to one line at
 // data.target and colours whole bars by which side of it they are on.
 window.__rwkvRecallPlot = function (data, W, H, pad) {
+    const CARD_MIN_H = 8;
     const target = data.target;
     const perCard = !!data.due;
     const clean = (buckets) => Object.entries(buckets || {})
@@ -56,6 +57,14 @@ window.__rwkvRecallPlot = function (data, W, H, pad) {
         if (dueHere && dueHere < count) bars += rect("rr-low", percent, Math.max(2, (dueHere / count) * height));
         bars += `<title>${label}</title></g>`;
     });
+
+    // data.card is one card's R, in the reviewer once its answer shows. It goes
+    // over the bar it falls on, which may be empty as the counts are a moment
+    // old, and is kept tall enough to find among the short bars.
+    if (data.card != null) {
+        const percent = Math.min(100, Math.max(min, data.card));
+        bars += rect("rr-card", percent, Math.max(CARD_MIN_H, (counts[percent - min] / peak) * plotH));
+    }
 
     // A line sits on the boundary between "below target" and "at target".
     let lines = "";
